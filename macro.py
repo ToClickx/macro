@@ -84,7 +84,7 @@ class CordsWindow:
         word = str(prefix)+str(self.x)+" "+str(self.y)+str(suffix)
         pyperclip.copy(word)
 
-    def update_cords(self):
+    def update_cords(self, event=None):
         self.x, self.y = pyautogui.position()
         self.cords_display.config(text=f"The coordinates are ({self.x}, {self.y})")
         if self.copy:
@@ -110,6 +110,7 @@ class MacroApp:
         self.loop_var = tk.IntVar()
         self.advanced_errorss = tk.IntVar()
         # Amount of frames in movement
+        # Btw I zoomed in
         self.steps = 1
         # The mouse controller to do stuff with the mouse
         self.mouse = pynput.mouse.Controller()
@@ -153,19 +154,17 @@ class MacroApp:
     
     # Used for not having a lot of or statements when comparing a string to something
     def switch(self, string, comparisons):
-        if isinstance(string, str):
-            if type(comparisons) == list:
-                for i in comparisons:
-                    if isinstance(i, str):
-                        if i == string:
-                            return True
-                            break
+        try:
+            return string in comparisons
+        except TypeError:
+            return False
 
     # Function for making advanced error statements fast
     def error(self, title, error):
         if isinstance(error, str) and isinstance(title, str):
             if self.advanced_errors:
                 messagebox.showerror(title=title, message=error)
+            print(f"{title}: {error}")
         elif isinstance(error, str) and not isinstance(title, str):
             print("The title is not a string")
         elif not isinstance(error, str) and isinstance(title, str):
@@ -278,53 +277,28 @@ class MacroApp:
         return None
 
     # The main code for the move command
-    def smove(self, xm, ym, delay=True):
-        if delay == True:   
-            startx, starty = pyautogui.position()
-            difx = xm - startx
-            dify = ym - starty
-            distance = ((difx ** 2) + (dify ** 2)) ** 0.5  # Calculate the total distance
+    def smove(self, xm, ym): 
+        startx, starty = pyautogui.position()
+        difx = xm - startx
+        dify = ym - starty
+        distance = ((difx ** 2) + (dify ** 2)) ** 0.5  # Calculate the total distance
 
-            if self.steps <= 0:
-                raise ValueError("Number of steps should be greater than zero.")
+        if self.steps <= 0:
+            raise ValueError("Number of steps should be greater than zero.")
 
-            xstep = difx / self.steps
-            ystep = dify / self.steps
+        xstep = difx / self.steps
+        ystep = dify / self.steps
 
-            if xstep == 0 and ystep == 0:
-                return
+        if xstep == 0 and ystep == 0:
+            return
 
-            # Set a constant duration to achieve a constant speed
-            constant_duration = 0.2
+        # Set a constant duration to achieve a constant speed
+        constant_duration = 0.2
 
-            for _ in range(self.steps):
-                pyautogui.moveTo(startx + xstep, starty + ystep, duration=constant_duration)
-                startx += xstep
-                starty += ystep
-        elif delay == False:
-            startx, starty = pyautogui.position()
-            difx = xm - startx
-            dify = ym - starty
-            distance = ((difx ** 2) + (dify ** 2)) ** 0.5  # Calculate the total distance
-
-            if self.steps <= 0:
-                raise ValueError("Number of steps should be greater than zero.")
-
-            xstep = difx / self.steps
-            ystep = dify / self.steps
-
-            if xstep == 0 and ystep == 0:
-                return
-
-            # Set a constant duration to achieve a constant speed
-            constant_duration = 0.4
-
-            for _ in range(self.steps):
-                pyautogui.moveTo(startx + xstep, starty + ystep, duration=0.001)
-                startx += xstep
-                starty += ystep
-        else:
-            print("How?")
+        for _ in range(self.steps):
+            pyautogui.moveTo(startx + xstep, starty + ystep, duration=constant_duration)
+            startx += xstep
+            starty += ystep
         
     # The main code for the hold command
     def hold_key(self, key, duration):
@@ -380,16 +354,20 @@ class MacroApp:
     # Most of the code for the program is the parce and execute if I lose it fully I quit the project
     # The code that will parse the command line and execute the commands that it contains
     def parse_and_execute_command(self, command):
+        # Check of any command at all was given
         if command == None or command == "":
+            cmd = ""
             pass
-        command = command.split('#')[0]
+        else:
+            command = command.split('#')[0]
 
-        # Save the full command
-        full_command = command
-        # Split the command and arguments
-        parts = command.split(' ')
-        cmd = parts[0].lower()
-        args = parts[1:].lower()
+            # Save the full command
+            full_command = command
+            
+            # Split the command and arguments
+            parts = command.lower().split()
+            cmd = parts[0].lower()
+            args = parts[1:]
 
         # All click commands
         if "click" in cmd:
@@ -403,8 +381,7 @@ class MacroApp:
                         pyautogui.click()
                     except ValueError:
                         if self.advanced_errors == True:
-                            messagebox.showerror(title="Click Command Error", message="Please enter 2 numbers with no other characters for the x and y.")
-                        print("Invalid arguments for 'click' command. Please type numbers.")
+                            self.error("Click Command Error", "Please enter 2 numbers with no other characters for the x and y.")
 
                 # No cords click
                 elif len(args) == 0:
@@ -521,60 +498,61 @@ class MacroApp:
 
         
         # All typing commands
-        if "type" in cmd:
+        elif "type" in cmd:
+            match cmd:
+
             # The type command. Will type what the user specify. Only takes 1 argument aka no spaces.
-            if cmd == "type":
-                if len(args) == 1:
-                    chars = repr(args[0])[1:-1]
-                    pyautogui.typewrite(chars)
-
-                if len(args) == 2: 
-                    if args[0] == "thread":
+                case "type":
+                    if len(args) == 1:
                         chars = repr(args[0])[1:-1]
-                        thread3 = threading.Thread(target=lambda: pyautogui.typewrite(chars), daemon=True)
-                        thread3.start()
-                    
-                    elif args[0] == "var":
-                        if args[1] in self.str_uvars:
-                            pyautogui.typewrite(self.str_uvars[args[1]])
-                    
-                    else:
-                        if self.advanced_errors == True:
-                            messagebox.showerror(title="Type Command Error", message="When you use 3 arguments for the type command the first argument is expected to be thread or a variable.")
-                        print("When you use 3 arguments for the type command the first argument is expected to be thread or a variable.")
+                        pyautogui.typewrite(chars)
 
-                else:
-                    if self.advanced_errors == True:
-                            messagebox.showerror(title="Type Command Error", message="Invalid amount of arguments. Please do not use spaces.")
-                    print("Invalid arguments for 'type' command. Use no spaces")
-
-        
-            # This command will type everything in double quotes and join multiple pairs of double quotes
-            elif self.switch(cmd, ["typef", "typestr", "type_str", "strtype", "str_type", "ftype"]):
-                list_msg = self.ffdq(repr(full_command)[1:-1])
-                if list_msg == []:
-                    self.error("Type String Error", "Please put what you would like to type in quotes for type string.")
-                    print("Type String Error: Please put what you would like to type in quotes for type string.")
-                else:
-                    msg = "".join(list_msg)
-                    if args[0] != "thread":
-                        if len(args) >= 1:
-                            pyautogui.typewrite(msg)
-
-                    elif len(args) >= 2:
+                    if len(args) == 2: 
                         if args[0] == "thread":
-                            type_thread = threading.Thread(target=lambda: pyautogui.typewrite(msg), daemon=True)
-                            type_thread.start()                   
+                            chars = repr(args[0])[1:-1]
+                            thread3 = threading.Thread(target=lambda: pyautogui.typewrite(chars), daemon=True)
+                            thread3.start()
+                        
+                        elif args[0] == "var":
+                            if args[1] in self.str_uvars:
+                                pyautogui.typewrite(self.str_uvars[args[1]])
                         
                         else:
                             if self.advanced_errors == True:
-                                messagebox.showerror(title="Type Command Error", message="Error in type string thread.")
-                            print("Error in type string thread.")
+                                messagebox.showerror(title="Type Command Error", message="When you use 3 arguments for the type command the first argument is expected to be thread or a variable.")
+                            print("When you use 3 arguments for the type command the first argument is expected to be thread or a variable.")
 
                     else:
                         if self.advanced_errors == True:
                                 messagebox.showerror(title="Type Command Error", message="Invalid amount of arguments. Please do not use spaces.")
                         print("Invalid arguments for 'type' command. Use no spaces")
+        
+            # This command will type everything in double quotes and join multiple pairs of double quotes
+                case ["typef" | "typestr" | "type_str" | "strtype" | "str_type" | "ftype" | "stype"]:
+                    list_msg = self.ffdq(repr(full_command)[1:-1])
+                    if list_msg == []:
+                        self.error("Type String Error", "Please put what you would like to type in quotes for type string.")
+                        print("Type String Error: Please put what you would like to type in quotes for type string.")
+                    else:
+                        msg = "".join(list_msg)
+                        if args[0] != "thread":
+                            if len(args) >= 1:
+                                pyautogui.typewrite(msg)
+
+                        elif len(args) >= 2:
+                            if args[0] == "thread":
+                                type_thread = threading.Thread(target=lambda: pyautogui.typewrite(msg), daemon=True)
+                                type_thread.start()                   
+                            
+                            else:
+                                if self.advanced_errors == True:
+                                    messagebox.showerror(title="Type Command Error", message="Error in type string thread.")
+                                print("Error in type string thread.")
+
+                        else:
+                            if self.advanced_errors == True:
+                                    messagebox.showerror(title="Type Command Error", message="Invalid amount of arguments. Please do not use spaces.")
+                            print("Invalid arguments for 'type' command. Use no spaces")
 
 
         # The wait command. Will make the macro wait the users specified amount of time.
@@ -587,6 +565,7 @@ class MacroApp:
                     if self.advanced_errors == True:
                         messagebox.showerror(title="Wait Command Error", message="Please use a number for the wait argument.")
                     print("Invalid argument for 'wait' command. Must be a number.")
+            
             else:
                 if self.advanced_errors == True:
                         messagebox.showerror(title="Wait Command Error", message="Pleae only use 1 argument for the wait command.")
@@ -594,7 +573,7 @@ class MacroApp:
         
 
         # The press command. Will press the button the user inputs.
-        elif cmd == "press":
+        elif self.switch(cmd, ["press", "input", "key"]):
             if len(args) == 1:
                 try:
                     key = args[0]
@@ -603,6 +582,7 @@ class MacroApp:
                     if self.advanced_errors == True:
                         messagebox.showerror(title="Press Command Error", message="Please enter a key for the press argument.")
                     print("Invalid arguments for 'press' command.")
+            
             elif len(args) == 2:
                 if args[0] == "thread":
                     try:
@@ -613,21 +593,17 @@ class MacroApp:
                         if self.advanced_errors == True:
                             messagebox.showerror(title="Press Command Error", message="Please enter a key for the press argument.")
                         print("Invalid arguments for 'press' command.")
+            
             else:
                 if self.advanced_errors == True:
                         messagebox.showerror(title="Press Command Error", message="Invalid arguments for press command. DO NOT use spaces.")
                 print("Invalid arguments for 'press' command.")
         
-        # For coding related macro commands
-        elif self.switch(cmd, ["code", "coding", "python"]):
-            if len(args) == 3:
-                if self.switch(args[0], ["tk", "tkinter"]):
-                    if self.switch(args[1], ["gui", "screen"]):
-                        if self.switch(args[2], ["copy", "duplicate", "dupe"]):
-                            copy(macrosaves.tkinter_template)
 
-            if len(args) == 1:
-                if args[0] == "tkinter" or args[0] == "tk":
+        # For coding related commands
+        elif self.switch(cmd, ["code", "coding", "python", "py"]):
+            match args:
+                case ["tk" | "tkinter"]:
                     top = tk.Toplevel(self.root)
                     top.title("OOP Tkinter GUI")
 
@@ -641,52 +617,49 @@ class MacroApp:
                     copy_button = tk.Button(top, text="Copy", command=lambda: pyperclip.copy(text.get("1.0", "end-1c")))
                     copy_button.pack()
 
-            if len(args) == 2:
-                if self.switch(args[0], ["tk", "tkinter"]):
-                    if self.switch(args[1], ["gui", "screen"]):
-                        top = tk.Toplevel(self.root)
-                        top.title("OOP Tkinter GUI")
-
-                        ico = Image.open('screen.ico')
-                        photo = ImageTk.PhotoImage(ico)
-                        top.wm_iconphoto(False, photo)
-
-                        text = tk.Text(top)
-                        text.insert("1.0", macrosaves.tkinter_template)
-                        text.pack()
-                        copy_button = tk.Button(top, text="Copy", command=lambda: pyperclip.copy(text.get("1.0", "end-1c")))
-                        copy_button.pack()
+                case ["tk" | "tkinter", "gui" | "screen"]:
+                    top = tk.Toplevel(self.root)
+                    top.title("OOP Tkinter GUI")
+                    ico = Image.open('screen.ico')
+                    photo = ImageTk.PhotoImage(ico)
+                    top.wm_iconphoto(False, photo)
+                    text = tk.Text(top)
+                    text.insert("1.0", macrosaves.tkinter_template)
+                    text.pack()
+                    copy_button = tk.Button(top, text="Copy", command=lambda: pyperclip.copy(text.get("1.0", "end-1c")))
+                    copy_button.pack()
                 
-                    elif args[1] == "copy":
-                        pyperclip.copy(macrosaves.tkinter_template)
-                
+                case ["tk" | "tkinter", "copy"] | ["tk" | "tkinter", "gui" | "screen", "copy" | "duplicate" | "dupe"]:
+                    pyperclip.copy(macrosaves.tkinter_template)
 
+                
 
         # A fast way of typing common minecraft commands
         elif cmd == "minecraft" or cmd == "mc":
             if len(args) >= 1:
+                match args:
 
-                if args[0] == "onyx":
-                    if args[1] == "sell":
-                        if args[2] == "copper_slab":
-                            pyautogui.typewrite(r"/sellall waxed_oxidized_cut_copper_slab")
+                    case ["onxy", "sell", "copper" | "copper_slab" | "slab"]:
+                        pyautogui.typewrite(r"/sellall waxed_oxidized_cut_copper_slab")
 
-                elif args[0] == "sell":
-                    if len(args) == 2: 
-                        pyautogui.typewrite(r"/sell")
-                        pyautogui.typewrite(f" {args[1]}")
+                    case "sell":
+                        if len(args) == 2: 
+                            pyautogui.typewrite(r"/sell")
+                            pyautogui.typewrite(f" {args[1]}")
                 
-                elif args[0] == "raw":
-                    if args[1] == "input":
+                    case ["raw", "input"]:
                         self.execute_macro_once(['press esc', 'wait 0.1', 'click 843 487', 'wait 0.1', 'click 1133 334', 'wait 0.1', 'click 891 186', 'wait 0.1', 'click 1111 214', 'wait 0.1', 'click 918 992', 'wait 0.1', 'click 968 337', 'wait 0.1', 'click 978 541', 'wait 0.1', 'click 973 279'])
 
-                elif args[0] == "pv":
-                    if len(args) == 1:
-                        pyautogui.typewrite(r"/pv 1")
-                    elif len(args) == 2:
-                        if args[1].isdigit:
-                            word = r"/pv "+ args[1]
-                            pyautogui.typewrite(word)
+                    case "ri":
+                        self.execute_macro_once(['press esc', 'wait 0.1', 'click 843 487', 'wait 0.1', 'click 1133 334', 'wait 0.1', 'click 891 186', 'wait 0.1', 'click 1111 214', 'wait 0.1', 'click 918 992', 'wait 0.1', 'click 968 337', 'wait 0.1', 'click 978 541', 'wait 0.1', 'click 973 279'])
+
+                    case "pv":
+                        if len(args) == 1:
+                            pyautogui.typewrite(r"/pv 1")
+                        elif len(args) == 2:
+                            if args[1].isdigit():
+                                word = r"/pv "+ args[1]
+                                pyautogui.typewrite(word)
 
 
         # Faster way of pressing spaceabr 
@@ -696,81 +669,70 @@ class MacroApp:
 
         # The hold command. Will hold the specified key for the specified amount of time. The rate of witch the inputs are registered can be modified using the speed argumemt. Hold left and right hold the left and right key
         elif "hold" in cmd:
-            if cmd == "hold":
-                if len(args) == 2:
+            match cmd:
+                
+                case "hold":
+                    # Hold a key
+                    if len(args) == 2:
 
-                    # The speed argument handler
-                    if args[0] == "speed":
-                        if type(args[1]) == int or type(args[1] == float):
-                            self.holdspeed = float(args[1])
-                        else:
-                            if self.advanced_errors == True:
-                                messagebox.showerror(title="Hold Command Error", message="Please use a number for the speed value.")
-                            print("Invalid arguments for 'hold' command.")
-                    
-                    # The normal hold arguments handler
-                    else:
-                        print(args[0])
+                        # The normal hold arguments handler
                         if args[0] in self.keys:
                             if args[1].isdigit():
                                 self.hold_key(key=args[0], duration=float(args[1]))
                             else:
-                                if self.advanced_errors == True:
-                                    messagebox.showerror(title="Hold Command Error", message="Please enter a number for the second argument.")
-                                print("Invalid arguments for hold command.")
+                                self.error("Hold Command Error", "Please enter a number for the second argument.")
                         else:
-                            if self.advanced_errors == True:
-                                messagebox.showerror(title="Hold Command Error", message="Please enter a key for the first argument.")
-                            print("Invalid arguments for hold command.")
-
-                # The threaded hold argument handler       
-                
-                elif len(args) == 3:
-                    if args[0] == "thread":
-                        if args[1] in self.keys:
-                            if type(args[2]) == int or type(args[2]) == float:
-                                thread = threading.Thread(target=self.hold_key, args=(args[1], float(args[2])), daemon=True)
-                                thread.start()
+                            self.error("Hold Command Error", "Please enter a key for the first argument.")
+                    
+                    # The threaded hold argument handler       
+                    elif len(args) == 3:
+                        if args[0] == "thread":
+                            if args[1] in self.keys:
+                                if type(args[2]) == int or type(args[2]) == float:
+                                    thread = threading.Thread(target=self.hold_key, args=(args[1], float(args[2])), daemon=True)
+                                    thread.start()
+                                else:
+                                    if self.advanced_errors == True:
+                                        messagebox.showerror(title="Hold Command Error", message="Please enter a number for the third argument.")
+                                    print("Invalid arguments for hold command.")
                             else:
                                 if self.advanced_errors == True:
-                                    messagebox.showerror(title="Hold Command Error", message="Please enter a number for the third argument.")
+                                    messagebox.showerror(title="Hold Command Error", message="Please enter a key for the second argument.")
                                 print("Invalid arguments for hold command.")
+
                         else:
+                            # Advanced Error Message
                             if self.advanced_errors == True:
-                                messagebox.showerror(title="Hold Command Error", message="Please enter a key for the second argument.")
-                            print("Invalid arguments for hold command.")
-
-                    else:
-                        # Advanced Error Message
+                                messagebox.showerror(title="Hold Command Error", message="Invalid arguments for threading a hold")
+                            print("Invalid arguments for 'hold' command.")
+                    
+                    # More than the max amount of arguments
+                    elif len(args) > 3 or len(args) == 1:
                         if self.advanced_errors == True:
-                            messagebox.showerror(title="Hold Command Error", message="Invalid arguments for threading a hold")
-                        print("Invalid arguments for 'hold' command.")
-                
-                # More than the max amount of arguments
-                elif len(args) > 3 or len(args) == 1:
-                    if self.advanced_errors == True:
-                        messagebox.showerror(title="Hold Command Error", message="Invalid amount of arguments for the hold command")
-                    print("Invalid amount of arguments for the hold command")
+                            messagebox.showerror(title="Hold Command Error", message="Invalid amount of arguments for the hold command")
+                        print("Invalid amount of arguments for the hold command")
 
-            elif cmd == "holdleft":
-                if len(args) == 1:
-                    try:
-                        duration = float(args[0])
-                        self.hold_key('left', duration)
-                    except ValueError:
-                        if self.advanced_errors == True:
-                            messagebox.showerror(title="HoldLeft Command Error", message="Please use a number for the duration.")
-                        print("Invalid arguments for 'holdleft' command.")
 
-            elif cmd == "holdright":
-                if len(args) == 1:
-                    try:
-                        duration = float(args[0])
-                        self.hold_key('right', duration)
-                    except ValueError:
-                        if self.advanced_errors == True:
-                            messagebox.showerror(title="HoldRight Command Error", message="Please use a number for the duration.")
-                        print("Invalid arguments for 'holdright' command.")
+                case ["holdleft"| "lefthold"]:
+                    if len(args) == 1:
+                        try:
+                            duration = float(args[0])
+                            self.hold_key('left', duration)
+                        except ValueError:
+                            if self.advanced_errors == True:
+                                messagebox.showerror(title="HoldLeft Command Error", message="Please use a number for the duration.")
+                            print("Invalid arguments for 'holdleft' command.")
+
+
+                case ["righthold" | "holdright"]:
+                    if len(args) == 1:
+                        try:
+                            duration = float(args[0])
+                            self.hold_key('right', duration)
+                        except ValueError:
+                            if self.advanced_errors == True:
+                                messagebox.showerror(title="HoldRight Command Error", message="Please use a number for the duration.")
+                            print("Invalid arguments for 'holdright' command.")
 
 
         # The move command will move the mouse to a specified x and y coordinate or reletive to the current x and y. Can also be a thread.
@@ -944,7 +906,7 @@ class MacroApp:
 
 
         # Used for changing pyautogui pause time
-        if self.switch(cmd, ["pausetime", "pause_time", "stoptime", "stop_time", "inputtime", "inputime", "input_time", "delay", "default_delay", "defaultdelay"]):
+        elif self.switch(cmd, ["pausetime", "pause_time", "stoptime", "stop_time", "inputtime", "inputime", "input_time", "delay", "default_delay", "defaultdelay"]):
             if args[0]:
                 try:
                     num = int(args[0])
@@ -953,7 +915,12 @@ class MacroApp:
                     self.error("Delay Change Error", "When changing the input delay please input a non decimal number")
                     print("Delay Change Error: When changing the input delay please input a non decimal number")
 
-        # No command was valid not in use right now because it doesn't work as intended
+        elif self.switch(cmd, ["test", "testing"]):
+            if args[0] == "print":
+                print("Printed")
+
+
+        # No command was valid not in use right now because it doesn't work as intended. Used to just be a else statement but it did not work so I got rid of it
 
     # Used to typing text into the command line
     def ty(self, text):
